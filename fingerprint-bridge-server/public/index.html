@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Attendance - WiFi Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-online {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-offline {
+            background: #ef4444;
+            color: white;
+        }
+
+        .status-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .signal-strength {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .signal-bars {
+            display: flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 20px;
+        }
+
+        .signal-bar {
+            width: 4px;
+            background: #ddd;
+            border-radius: 2px;
+        }
+
+        .signal-bar.active {
+            background: #10b981;
+        }
+
+        .signal-bar:nth-child(1) { height: 6px; }
+        .signal-bar:nth-child(2) { height: 10px; }
+        .signal-bar:nth-child(3) { height: 14px; }
+        .signal-bar:nth-child(4) { height: 18px; }
+
+        .log-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background: #f9fafb;
+            border-left: 3px solid #667eea;
+        }
+
+        .log-entry.success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .log-entry.error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .log-entry.warning {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .log-time {
+            color: #666;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+            margin: 10px 0;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 ESP32 Attendance System</h1>
+            <p>WiFi Management & System Monitor</p>
+        </div>
+
+        <div class="grid">
+            <!-- Connection Status Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📡 Connection Status</div>
+                    <span class="status-badge" id="connection-badge">Connecting...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">ESP32 IP</span>
+                    <span class="info-value" id="esp32-ip">---.---.---.---</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Discovery Method</span>
+                    <span class="info-value" id="discovery-method">Unknown</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">WebSocket</span>
+                    <span class="info-value pulse" id="websocket-status">Connecting...</span>
+                </div>
+            </div>
+
+            <!-- WiFi Info Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📶 WiFi Information</div>
+                    <span class="status-badge status-offline" id="wifi-badge">Offline</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Network Name</span>
+                    <span class="info-value" id="wifi-ssid">Not Connected</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Signal Strength</span>
+                    <div class="signal-strength">
+                        <div class="signal-bars" id="signal-bars">
+                            <div class="signal-bar"></div>
+                            <div class="signal-bar"></div>
+                            <div class="signal-bar"></div>
+                            <div class="signal-bar"></div>
+                        </div>
+                        <span class="info-value" id="wifi-rssi">-- dBm</span>
+                    </div>
+                </div>
+                <button class="btn btn-danger" id="reset-wifi-btn" disabled>
+                    🔄 Reset WiFi Settings
+                </button>
+            </div>
+
+            <!-- Sensors Status Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔧 Sensors Status</div>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Fingerprint Sensor</span>
+                    <span class="info-value" id="fingerprint-status">⏳ Checking...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">GPS Module</span>
+                    <span class="info-value" id="gps-status">⏳ Checking...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">GPS Fix</span>
+                    <span class="info-value" id="gps-fix">❌ No Fix</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Satellites</span>
+                    <span class="info-value" id="satellites">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Offline Buffer Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">💾 Offline Attendance Buffer</div>
+                <span class="status-badge status-warning" id="buffer-badge">0 Records</span>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="buffer-count">0</div>
+                <div class="metric-label">Pending Attendance Records</div>
+            </div>
+            <button class="btn btn-success" id="sync-buffer-btn" disabled>
+                ⬆️ Sync Buffered Records Now
+            </button>
+            <p style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9em;">
+                Records are automatically synced when connection is restored
+            </p>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="log-container">
+            <h2 class="card-title" style="margin-bottom: 15px;">📋 Activity Log</h2>
+            <div id="activity-log"></div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:5000');
+        const log = document.getElementById('activity-log');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="log-time">${time}</span>${message}`;
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function updateSignalBars(rssi) {
+            const bars = document.querySelectorAll('.signal-bar');
+            let activeBars = 0;
+            
+            if (rssi >= -50) activeBars = 4;
+            else if (rssi >= -60) activeBars = 3;
+            else if (rssi >= -70) activeBars = 2;
+            else if (rssi >= -80) activeBars = 1;
+            
+            bars.forEach((bar, index) => {
+                if (index < activeBars) {
+                    bar.classList.add('active');
+                } else {
+                    bar.classList.remove('active');
+                }
+            });
+        }
+
+        ws.onopen = () => {
+            addLog('✅ Connected to server', 'success');
+            document.getElementById('websocket-status').textContent = '✅ Connected';
+            document.getElementById('websocket-status').classList.remove('pulse');
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'ESP32_CONNECTION') {
+                const badge = document.getElementById('connection-badge');
+                const resetBtn = document.getElementById('reset-wifi-btn');
+                const syncBtn = document.getElementById('sync-buffer-btn');
+                
+                if (data.connected) {
+                    badge.textContent = '🟢 Online';
+                    badge.className = 'status-badge status-online';
+                    document.getElementById('esp32-ip').textContent = data.ip;
+                    document.getElementById('discovery-method').textContent = data.discoveryMethod;
+                    resetBtn.disabled = false;
+                    syncBtn.disabled = false;
+                    addLog(`✅ ESP32 connected via ${data.discoveryMethod}`, 'success');
+                } else {
+                    badge.textContent = '🔴 Offline';
+                    badge.className = 'status-badge status-offline';
+                    resetBtn.disabled = true;
+                    syncBtn.disabled = true;
+                    addLog('❌ ESP32 disconnected', 'error');
+                }
+            }
+            
+            if (data.type === 'ESP32_STATUS') {
+                const status = data.data;
+                
+                // WiFi status
+                const wifiBadge = document.getElementById('wifi-badge');
+                if (status.wifi) {
+                    wifiBadge.textContent = '🟢 Connected';
+                    wifiBadge.className = 'status-badge status-online';
+                    document.getElementById('wifi-ssid').textContent = status.ssid || 'Unknown';
+                    document.getElementById('wifi-rssi').textContent = `${status.rssi} dBm`;
+                    updateSignalBars(status.rssi);
+                } else {
+                    wifiBadge.textContent = '🔴 Offline';
+                    wifiBadge.className = 'status-badge status-offline';
+                }
+                
+                // Fingerprint
+                document.getElementById('fingerprint-status').textContent = status.fingerprint ? '✅ Available' : '❌ Not Detected';
+                
+                // GPS
+                document.getElementById('gps-status').textContent = status.gps ? '✅ Available' : '❌ Not Detected';
+                document.getElementById('gps-fix').textContent = status.gpsFixed ? '✅ Fixed' : '❌ No Fix';
+                document.getElementById('satellites').textContent = status.satellites || 0;
+                
+                // Buffer
+                const buffered = status.buffered || 0;
+                document.getElementById('buffer-count').textContent = buffered;
+                const bufferBadge = document.getElementById('buffer-badge');
+                bufferBadge.textContent = `${buffered} Records`;
+                if (buffered > 0) {
+                    bufferBadge.className = 'status-badge status-warning';
+                } else {
+                    bufferBadge.className = 'status-badge status-online';
+                }
+            }
+            
+            if (data.type === 'ATTENDANCE') {
+                addLog(`📋 Attendance logged: ID ${data.data.id} at ${data.data.latitude.toFixed(6)}, ${data.data.longitude.toFixed(6)}`, 'success');
+            }
+            
+            if (data.type === 'ATTENDANCE_BUFFERED') {
+                addLog(`⬆️ Synced buffered attendance: ID ${data.data.id}`, 'success');
+            }
+            
+            if (data.type === 'WIFI_RESET') {
+                addLog('🔄 WiFi reset command sent - ESP32 will restart', 'warning');
+            }
+        };
+
+        ws.onerror = (error) => {
+            addLog('❌ WebSocket error occurred', 'error');
+        };
+
+        ws.onclose = () => {
+            addLog('⚠️ Disconnected from server', 'warning');
+            document.getElementById('websocket-status').textContent = '❌ Disconnected';
+        };
+
+        // Button handlers
+        document.getElementById('reset-wifi-btn').addEventListener('click', async () => {
+            if (confirm('Are you sure you want to reset WiFi settings? ESP32 will restart and create a setup hotspot.')) {
+                try {
+                    const response = await fetch('/api/reset-wifi', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        addLog('🔄 WiFi reset initiated', 'warning');
+                    }
+                } catch (error) {
+                    addLog('❌ Failed to reset WiFi', 'error');
+                }
+            }
+        });
+
+        document.getElementById('sync-buffer-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/sync-buffer', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    addLog('⬆️ Buffer sync requested', 'success');
+                }
+            } catch (error) {
+                addLog('❌ Failed to sync buffer', 'error');
+            }
+        });
+
+        // Initial log
+        addLog('🚀 Dashboard loaded - Waiting for connection...', 'info');
+    </script>
+</body>
+</html>
