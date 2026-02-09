@@ -10,13 +10,14 @@ type ScanState = "idle" | "scanning" | "success" | "error";
 export default function ExamVerification() {
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [statusMessage, setStatusMessage] = useState(
-    "Click button to begin verification"
+    "Click button to begin verification",
   );
   const [verifiedData, setVerifiedData] = useState<AccessCardData | null>(null);
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    ws.current = new WebSocket("ws://localhost:5000"); // Using port 5000 based on FingerprintPortal
+    const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:5000";
+    ws.current = new WebSocket(wsUrl);
     let isMounted = true;
 
     ws.current.onopen = () => {
@@ -30,38 +31,39 @@ export default function ExamVerification() {
     };
     ws.current.onmessage = (event) => {
       if (!isMounted) return;
-      
+
       let messageStr = event.data.toString();
-      let status = "", data: any = "";
-      
+      let status = "",
+        data: any = "";
+
       try {
         const jsonData = JSON.parse(messageStr);
         if (jsonData.type === "VERIFY_RESPONSE") {
-             if (jsonData.success) {
-                 handleSuccessfulVerification(jsonData.id.toString());
-                 return; 
-             } else {
-                 status = "ERROR";
-                 data = "No match found";
-             }
-        } else if (jsonData.type === "SIGNED_OUT") {
-             setScanState("success");
-             setStatusMessage(`${jsonData.studentName}: Signed Out`);
-             setVerifiedData({
-                name: jsonData.studentName,
-                studentId: jsonData.studentId,
-                department: jsonData.department,
-                courseName: jsonData.courseName,
-                attendancePercentage: jsonData.attendancePercentage,
-                status: 'exit'
-             });
-             return;
-        } else if (jsonData.type === "ESP32_STATUS") {
-            // Ignore status updates here for now
+          if (jsonData.success) {
+            handleSuccessfulVerification(jsonData.id.toString());
             return;
+          } else {
+            status = "ERROR";
+            data = "No match found";
+          }
+        } else if (jsonData.type === "SIGNED_OUT") {
+          setScanState("success");
+          setStatusMessage(`${jsonData.studentName}: Signed Out`);
+          setVerifiedData({
+            name: jsonData.studentName,
+            studentId: jsonData.studentId,
+            department: jsonData.department,
+            courseName: jsonData.courseName,
+            attendancePercentage: jsonData.attendancePercentage,
+            status: "exit",
+          });
+          return;
+        } else if (jsonData.type === "ESP32_STATUS") {
+          // Ignore status updates here for now
+          return;
         } else {
-             status = jsonData.type || "UNKNOWN";
-             data = jsonData.data || "";
+          status = jsonData.type || "UNKNOWN";
+          data = jsonData.data || "";
         }
       } catch (e) {
         const parts = messageStr.split(":", 2);
@@ -73,7 +75,9 @@ export default function ExamVerification() {
       else if (status === "STATUS") setStatusMessage(data);
       else if (status !== "ATTENDANCE") {
         setScanState("error");
-        setStatusMessage(typeof data === 'string' ? data : "Verification failed");
+        setStatusMessage(
+          typeof data === "string" ? data : "Verification failed",
+        );
       }
     };
 
@@ -100,14 +104,14 @@ export default function ExamVerification() {
       // 1. Find student by fingerprint
       const studentQuery = query(
         collection(db, "students"),
-        where("fingerprintTemplate", "==", fingerprintId)
+        where("fingerprintTemplate", "==", fingerprintId),
       );
       const studentSnapshot = await getDocs(studentQuery);
 
       if (studentSnapshot.empty) {
         setScanState("error");
         setStatusMessage(
-          "Fingerprint not recognized. Please contact the exam officer."
+          "Fingerprint not recognized. Please contact the exam officer.",
         );
         return;
       }
@@ -120,7 +124,7 @@ export default function ExamVerification() {
       // 2. Find an active session for the student's course
       const activeSessionsQuery = query(
         collection(db, "sessions"),
-        where("active", "==", true)
+        where("active", "==", true),
       );
       const activeSessionsSnapshot = await getDocs(activeSessionsQuery);
       if (activeSessionsSnapshot.empty) {
@@ -134,7 +138,7 @@ export default function ExamVerification() {
         coursesSnap.docs.map((doc) => [
           doc.id,
           doc.data() as Omit<Course, "id">,
-        ])
+        ]),
       );
 
       let matchedSessionDoc = null;
@@ -163,7 +167,7 @@ export default function ExamVerification() {
 
       // 3. Calculate attendance percentage
       const allSessionsSnap = await getDocs(
-        query(collection(db, "sessions"), where("courseId", "==", courseId))
+        query(collection(db, "sessions"), where("courseId", "==", courseId)),
       );
       const totalClasses = allSessionsSnap.docs.length;
 
@@ -171,8 +175,8 @@ export default function ExamVerification() {
         query(
           collection(db, "attendance"),
           where("studentId", "==", studentData.id),
-          where("courseId", "==", courseId)
-        )
+          where("courseId", "==", courseId),
+        ),
       );
       const attendedClasses = attendanceSnap.docs.length;
 
@@ -185,7 +189,7 @@ export default function ExamVerification() {
       if (attendancePercentage < 70) {
         setScanState("error");
         setStatusMessage(
-          `Access Denied: Minimum 70% attendance required. Yours is ${attendancePercentage}%.`
+          `Access Denied: Minimum 70% attendance required. Yours is ${attendancePercentage}%.`,
         );
         return;
       }
@@ -200,7 +204,6 @@ export default function ExamVerification() {
         courseName: `${matchedCourseData.name} (${matchedCourseData.code})`,
         attendancePercentage: attendancePercentage,
       });
-
     } catch (error) {
       console.error("Verification Error:", error);
       setScanState("error");
@@ -227,8 +230,9 @@ export default function ExamVerification() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
-      
-      {verifiedData && <ExamCard data={verifiedData} onClose={handleCloseCard} />}
+      {verifiedData && (
+        <ExamCard data={verifiedData} onClose={handleCloseCard} />
+      )}
 
       <div className="w-full max-w-md">
         {/* Header */}
@@ -236,9 +240,7 @@ export default function ExamVerification() {
           <h1 className="text-3xl font-semibold text-gray-300 mb-2">
             Exam Verification
           </h1>
-          <p className="text-gray-500">
-            Verify eligibility for exam entry
-          </p>
+          <p className="text-gray-500">Verify eligibility for exam entry</p>
         </div>
 
         {/* Main Card */}
@@ -252,10 +254,10 @@ export default function ExamVerification() {
                   scanState === "scanning"
                     ? "bg-blue-500 scale-150"
                     : scanState === "success"
-                    ? "bg-green-500 scale-150"
-                    : scanState === "error"
-                    ? "bg-red-500 scale-150"
-                    : "bg-transparent"
+                      ? "bg-green-500 scale-150"
+                      : scanState === "error"
+                        ? "bg-red-500 scale-150"
+                        : "bg-transparent"
                 }`}
               />
 
@@ -265,10 +267,10 @@ export default function ExamVerification() {
                   scanState === "scanning"
                     ? "bg-blue-50 border-2 border-blue-500"
                     : scanState === "success"
-                    ? "bg-green-50 border-2 border-green-500"
-                    : scanState === "error"
-                    ? "bg-red-50 border-2 border-red-500"
-                    : "bg-gray-50 border-2 border-gray-200"
+                      ? "bg-green-50 border-2 border-green-500"
+                      : scanState === "error"
+                        ? "bg-red-50 border-2 border-red-500"
+                        : "bg-gray-50 border-2 border-gray-200"
                 }`}
               >
                 {scanState === "scanning" && (
@@ -294,10 +296,10 @@ export default function ExamVerification() {
                 scanState === "scanning"
                   ? "text-blue-600"
                   : scanState === "success"
-                  ? "text-green-600"
-                  : scanState === "error"
-                  ? "text-red-600"
-                  : "text-gray-300"
+                    ? "text-green-600"
+                    : scanState === "error"
+                      ? "text-red-600"
+                      : "text-gray-300"
               }`}
             >
               {statusMessage}
@@ -314,17 +316,13 @@ export default function ExamVerification() {
                 : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98] shadow-md hover:shadow-lg"
             }`}
           >
-            {scanState === "scanning"
-              ? "Verifying..."
-              : "Start Verification"}
+            {scanState === "scanning" ? "Verifying..." : "Start Verification"}
           </button>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-8">
-          <p className="text-sm text-gray-400">
-            Secured by Dern Technology
-          </p>
+          <p className="text-sm text-gray-400">Secured by Dern Technology</p>
         </div>
       </div>
     </div>

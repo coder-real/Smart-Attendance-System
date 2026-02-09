@@ -71,7 +71,8 @@ export default function StudentModal({
   // WebSocket connection logic
   useEffect(() => {
     if (isOpen) {
-      ws.current = new WebSocket("ws://localhost:5000");
+      const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:5000";
+      ws.current = new WebSocket(wsUrl);
       let isMounted = true;
 
       ws.current.onopen = () => {
@@ -83,29 +84,31 @@ export default function StudentModal({
       };
 
       // Section 5: Process real-time messages from the server
-        ws.current.onmessage = (event) => {
-          if (isMounted) {
-            try {
-              const response = JSON.parse(event.data);
-              
-              if (response.type === "ENROLL_RESPONSE") {
-                if (response.success) {
-                  setFingerprintTemplate(response.id.toString());
-                  setFingerprintStatus("success");
-                  setFingerprintMessage(`Template captured successfully! (ID: ${response.id})`);
-                } else {
-                  setFingerprintStatus("error");
-                  setFingerprintMessage(response.error || "Capture failed.");
-                }
-              } else if (response.type === "ESP32_STATUS") {
-                // Just status updates, don't interfere with capture flow unless erroneous
+      ws.current.onmessage = (event) => {
+        if (isMounted) {
+          try {
+            const response = JSON.parse(event.data);
+
+            if (response.type === "ENROLL_RESPONSE") {
+              if (response.success) {
+                setFingerprintTemplate(response.id.toString());
+                setFingerprintStatus("success");
+                setFingerprintMessage(
+                  `Template captured successfully! (ID: ${response.id})`,
+                );
+              } else {
+                setFingerprintStatus("error");
+                setFingerprintMessage(response.error || "Capture failed.");
               }
-            } catch (e) {
-              // Fallback or ignore non-JSON
-              console.log("Non-JSON message:", event.data);
+            } else if (response.type === "ESP32_STATUS") {
+              // Just status updates, don't interfere with capture flow unless erroneous
             }
+          } catch (e) {
+            // Fallback or ignore non-JSON
+            console.log("Non-JSON message:", event.data);
           }
-        };
+        }
+      };
 
       ws.current.onerror = (error) => {
         if (isMounted) {

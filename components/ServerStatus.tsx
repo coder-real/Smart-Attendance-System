@@ -13,7 +13,8 @@ export default function ServerStatus() {
 
   useEffect(() => {
     const connect = () => {
-      ws.current = new WebSocket("ws://localhost:5000");
+      const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:5000";
+      ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
         setIsBridgeOnline(true);
@@ -32,7 +33,7 @@ export default function ServerStatus() {
       ws.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          
+
           if (message.type === "ESP32_CONNECTION") {
             setStatus((prev) => ({
               ...prev,
@@ -62,18 +63,24 @@ export default function ServerStatus() {
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mb-6">
-      <h2 className="text-lg font-semibold text-gray-700 mb-3">System Status</h2>
+      <h2 className="text-lg font-semibold text-gray-700 mb-3">
+        System Status
+      </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Bridge Server Status */}
         <div className="flex flex-col">
-          <span className="text-xs text-gray-500 uppercase">Connection Server</span>
+          <span className="text-xs text-gray-500 uppercase">
+            Connection Server
+          </span>
           <div className="flex items-center mt-1">
             <span
               className={`w-3 h-3 rounded-full mr-2 ${
                 isBridgeOnline ? "bg-green-500" : "bg-red-500"
               }`}
             ></span>
-            <span className={`font-medium ${isBridgeOnline ? "text-green-700" : "text-red-700"}`}>
+            <span
+              className={`font-medium ${isBridgeOnline ? "text-green-700" : "text-red-700"}`}
+            >
               {isBridgeOnline ? "Online" : "Offline"}
             </span>
           </div>
@@ -83,14 +90,14 @@ export default function ServerStatus() {
         <div className="flex flex-col">
           <span className="text-xs text-gray-500 uppercase">ESP32 Device</span>
           <div className="flex items-center mt-1">
-             <span 
-                 className={`w-3 h-3 rounded-full mr-2 ${
-                     status.esp32Connected ? "bg-green-500" : "bg-gray-400"
-                 }`}
-             ></span>
-             <span className="font-medium text-gray-800">
-                 {status.esp32Connected ? "Connected" : "Disconnected"}
-             </span>
+            <span
+              className={`w-3 h-3 rounded-full mr-2 ${
+                status.esp32Connected ? "bg-green-500" : "bg-gray-400"
+              }`}
+            ></span>
+            <span className="font-medium text-gray-800">
+              {status.esp32Connected ? "Connected" : "Disconnected"}
+            </span>
           </div>
         </div>
 
@@ -98,28 +105,36 @@ export default function ServerStatus() {
         <div className="flex flex-col">
           <span className="text-xs text-gray-500 uppercase">Modules</span>
           <div className="flex flex-col mt-1 space-y-1">
-             <div className="flex items-center text-sm">
-                <span className={`w-2 h-2 rounded-full mr-2 ${
-                    status.esp32Status?.fingerprint ? "bg-green-500" : "bg-red-400"
-                }`}></span>
-                <span className="text-gray-600">Fingerprint</span>
-             </div>
-             <div className="flex items-center text-sm">
-                <span className={`w-2 h-2 rounded-full mr-2 ${
-                    status.esp32Status?.gps ? "bg-green-500" : "bg-red-400"
-                }`}></span>
-                <span className="text-gray-600">GPS {status.esp32Status?.gpsFixed ? "(Fixed)" : ""}</span>
-             </div>
+            <div className="flex items-center text-sm">
+              <span
+                className={`w-2 h-2 rounded-full mr-2 ${
+                  status.esp32Status?.fingerprint
+                    ? "bg-green-500"
+                    : "bg-red-400"
+                }`}
+              ></span>
+              <span className="text-gray-600">Fingerprint</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span
+                className={`w-2 h-2 rounded-full mr-2 ${
+                  status.esp32Status?.gps ? "bg-green-500" : "bg-red-400"
+                }`}
+              ></span>
+              <span className="text-gray-600">
+                GPS {status.esp32Status?.gpsFixed ? "(Fixed)" : ""}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* GPS Satellites */}
-         <div className="flex flex-col">
-           <span className="text-xs text-gray-500 uppercase">Satellites</span>
-           <span className="text-lg font-bold text-gray-800">
-             {status.esp32Status?.satellites || 0}
-           </span>
-         </div>
+        <div className="flex flex-col">
+          <span className="text-xs text-gray-500 uppercase">Satellites</span>
+          <span className="text-lg font-bold text-gray-800">
+            {status.esp32Status?.satellites || 0}
+          </span>
+        </div>
       </div>
     </div>
   );

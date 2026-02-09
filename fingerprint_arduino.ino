@@ -2,15 +2,15 @@
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_Fingerprint.h>
 #include <WiFi.h>
-#include <WebSocketsClient.h> // CHANGED: Client Library
+#include <WebSocketsClient.h>
+#include <WiFiManager.h> // WiFi Configuration Manager
 
-// ===== WiFi Configuration =====
-const char* ssid = "TechGuy";
-const char* password = "1234567890";
+// ===== WiFi Manager =====
+WiFiManager wifiManager;
 
 // ===== Cloud Server Configuration =====
-const char* websocket_server = "your-app-name.onrender.com"; // TODO: UPDATE THIS
-const int websocket_port = 443; // Use 80 for HTTP, 443 for HTTPS (if supported by library/cert)
+const char* websocket_server = "biometric-attendance-system-zdnu.onrender.com"; // Your Render URL
+const int websocket_port = 443; // HTTPS/WSS
 const char* websocket_path = "/esp32";
 
 // ===== LCD SETUP =====
@@ -71,30 +71,40 @@ void setup() {
   printLCD("System Starting", "Cloud Mode...");
   delay(1000);
 
-  // ===== STEP 1: Connect to WiFi =====
-  printLCD("Connecting WiFi", ssid);
+  // ===== STEP 1: WiFi Configuration with WiFiManager =====
+  printLCD("WiFi Setup", "Starting...");
   Serial.println("=== WIFI INITIALIZATION ===");
-  WiFi.begin(ssid, password);
   
-  int wifiAttempts = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiAttempts < 30) {
-    delay(500);
-    Serial.print(".");
-    wifiAttempts++;
+  // Set custom AP name and password for configuration portal
+  wifiManager.setAPCallback([](WiFiManager *myWiFiManager) {
+    Serial.println("\n===== WiFi Configuration Mode =====");
+    Serial.println("Connect to WiFi: ESP32-Attendance");
+    Serial.println("Password: 12345678");
+    Serial.println("Open browser to: 192.168.4.1");
+    Serial.println("===================================");
+    printLCD("WiFi Setup", "192.168.4.1");
+  });
+  
+  // Set timeout for configuration portal (3 minutes)
+  wifiManager.setConfigPortalTimeout(180);
+  
+  // Try to connect to saved WiFi or start configuration portal
+  printLCD("Connecting", "WiFi...");
+  if (!wifiManager.autoConnect("ESP32-Attendance", "12345678")) {
+    Serial.println("\nFailed to connect and timeout reached");
+    printLCD("WiFi Failed", "Restarting...");
+    delay(3000);
+    ESP.restart();
   }
-
-  if (WiFi.status() != WL_CONNECTED) {
-    printLCD("WiFi Failed!", "Check settings");
-    Serial.println("\nERROR: Failed to connect to WiFi");
-    Serial.println("System will continue in offline mode...");
-    wifiConnected = false;
-  } else {
-    wifiConnected = true;
-    printLCD("WiFi Connected", WiFi.localIP().toString());
-    Serial.println("\nSUCCESS: WiFi connected!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-  }
+  
+  // Connected successfully
+  wifiConnected = true;
+  printLCD("WiFi Connected", WiFi.localIP().toString());
+  Serial.println("\n✓ WiFi connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Network: ");
+  Serial.println(WiFi.SSID());
   delay(2000);
 
   // ===== STEP 2: Initialize WebSocket Client (if WiFi available) =====
@@ -102,13 +112,10 @@ void setup() {
     printLCD("Connecting...", "Cloud Server");
     Serial.println("\n=== WEBSOCKET CLIENT INITIALIZATION ===");
     
-    // Server address, port, and URL path
-    // Note: For SSL (WSS/443), you might need `webSocket.beginSSL(...)` 
-    // dependent on the library version. For simple testing, use HTTP/80 or default.
-    // If Render forces HTTPS, ensure your library supports SSL.
-    // Standard `begin` usually does plain WS. 
-    // Assuming standard WS for now or User handles SSL config.
-    webSocket.begin(websocket_server, websocket_port, websocket_path);
+    // Use SSL for secure connection (port 443)
+    // Disable certificate verification (required for some SSL connections)
+    webSocket.beginSSL(websocket_server, websocket_port, websocket_path);
+    webSocket.setInsecure(); // Skip SSL certificate validation
     
     // Event handler
     webSocket.onEvent(webSocketEvent);
@@ -116,7 +123,7 @@ void setup() {
     // Auto reconnect every 5s
     webSocket.setReconnectInterval(5000);
     
-    Serial.print("Connecting to: ws://");
+    Serial.print("Connecting to: wss://");
     Serial.print(websocket_server);
     Serial.println(websocket_path);
   }
